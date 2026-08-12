@@ -1,4 +1,9 @@
 {
+  // 💡 最重要：自作のTextMate文法ファイルをVS Codeに登録する記述を追加
+  "declarativeLinkProvider.customLanguageFiles": [
+    ".vscode/my-lang.tmLanguage.json"
+  ],
+
   "files.associations": {
     "*.multiquiz": "source.multiquiz",
     "*.mq": "source.multiquiz",
