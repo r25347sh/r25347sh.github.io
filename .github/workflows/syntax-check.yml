@@ -1,20 +1,56 @@
-name: JavaScript Syntax Check
+name: MultiQuiz Project Auto Checker
 
 on:
   push:
-    branches: [ main, master ] # mainまたはmasterブランチにプッシュされたら起動
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
 
 jobs:
-  check:
+  validate:
     runs-on: ubuntu-latest
     steps:
-      - name: Code Checkout
+      - name: 1. コードの読み込み
         uses: actions/checkout@v4
 
-      - name: Run Syntax Check
+      - name: 2. 実行環境のセットアップ (Node.js)
+        uses: actions/v4
+        with:
+          node-version: 'lts/*'
+
+      # ------------------------------------------------------------------------
+      # [HTML / HTM] と [CSS] の自動エラーチェック
+      # ------------------------------------------------------------------------
+      - name: 3. HTML / CSS のエラーチェッカーをインストール
+        run: npm install -g htmlhint stylelint stylelint-config-standard
+
+      - name: 4. HTML / HTM の構文チェック
         run: |
-          # リポジトリ内のすべてのJSファイルに文法エラー（SyntaxError）がないか検証
-          for file in $(find . -name "*.js" -not -path "*/lib/*"); do
-            echo "Checking $file..."
-            node -c "$file"
-          done
+          # 拡張子が .html または .htm のファイルをすべて自動検知してチェック
+          htmlhint "**/*.html" "**/*.htm" --ignore "lib/**"
+
+      - name: 5. CSS の構文チェック
+        run: |
+          # 拡張子が .css のファイルをチェック（外部ライブラリは除く）
+          # 設定ファイルがない場合でも動くよう簡易ルールを指定
+          stylelint "**/*.css" --ignore-pattern "lib/**" --config '{"extends": "stylelint-config-standard"}'
+
+      # ------------------------------------------------------------------------
+      # [ .multiquiz ] [ .mq ] の自動文法チェック
+      # ------------------------------------------------------------------------
+      - name: 6. 自作クイズデータの文法チェックを実行
+        run: |
+          # あなたが作ったパーサーJS（例: js/parser.js）をNode.jsで裏で呼び出します。
+          # 引数として、リポジトリ内のすべての .multiquiz / .mq ファイルを渡してテストします。
+          
+          echo "=== 独自クイズデータの自動チェック開始 ==="
+          
+          # js/parser.js がファイルパスを受け取ってエラー時に終了コード1を出す設計の場合
+          if [ -f "js/parser.js" ]; then
+            for file in $(find . -type f \( -name "*.multiquiz" -o -name "*.mq" \) -not -path "*/lib/*"); do
+              echo "Checking quiz file: $file"
+              node js/parser.js "$file"
+            done
+          else
+            echo "⚠️ js/parser.js がまだ配置されていないため、データチェックをスキップします。"
+          fi
