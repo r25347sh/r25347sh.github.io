@@ -1,1 +1,140 @@
-
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "MultiQuiz",
+  "scopeName": "source.multiquiz",
+  "fileTypes": ["multiquiz", "mq", "myext", "myapp"],
+  "patterns": [
+    {
+      "comment": "Line comments",
+      "name": "comment.line.double-slash.multiquiz",
+      "match": "//.*$"
+    },
+    {
+      "comment": "Top-level keys",
+      "name": "keyword.control.multiquiz",
+      "match": "\\b(title|description|points_default|section|shuffle_questions|shuffle_options)\\b"
+    },
+    {
+      "comment": "Question type keywords",
+      "name": "keyword.other.type.multiquiz",
+      "match": "\\b(single|multiple|truefalse|input|fill|sort|matching)\\b"
+    },
+    {
+      "comment": "Property keys inside blocks",
+      "name": "entity.name.tag.multiquiz",
+      "match": "\\b(question|type|options|correct|points|note|items|left|right|blanks|caseSensitive|shuffle_options)\\b"
+    },
+    {
+      "comment": "Booleans / constants",
+      "name": "constant.language.multiquiz",
+      "match": "\\b(true|false|null|NONE)\\b"
+    },
+    {
+      "comment": "Numbers",
+      "name": "constant.numeric.multiquiz",
+      "match": "\\b[0-9]+(\\.[0-9]+)?\\b"
+    },
+    {
+      "comment": "Variable definition (name = value)",
+      "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*(=)",
+      "captures": {
+        "1": { "name": "variable.other.assignment.multiquiz" },
+        "2": { "name": "keyword.operator.assignment.multiquiz" }
+      }
+    },
+    {
+      "comment": "Variable interpolation {{name}}",
+      "name": "variable.other.interpolation.multiquiz",
+      "match": "\\{\\{[a-zA-Z_][a-zA-Z0-9_]*\\}\\}"
+    },
+    {
+      "comment": "Block comments /* */",
+      "name": "comment.block.multiquiz",
+      "begin": "/\\*",
+      "end": "\\*/"
+    },
+    {
+      "comment": "Double-quoted strings",
+      "name": "string.quoted.double.multiquiz",
+      "begin": "\"",
+      "beginCaptures": {
+        "0": { "name": "punctuation.definition.string.begin.multiquiz" }
+      },
+      "end": "\"",
+      "endCaptures": {
+        "0": { "name": "punctuation.definition.string.end.multiquiz" }
+      },
+      "patterns": [
+        {
+          "name": "constant.character.escape.multiquiz",
+          "match": "\\\\."
+        },
+        {
+          "name": "variable.other.interpolation.multiquiz",
+          "match": "\\{\\{[a-zA-Z_][a-zA-Z0-9_]*\\}\\}"
+        }
+      ]
+    },
+    {
+      "comment": "Single-quoted strings",
+      "name": "string.quoted.single.multiquiz",
+      "begin": "'",
+      "beginCaptures": {
+        "0": { "name": "punctuation.definition.string.begin.multiquiz" }
+      },
+      "end": "'",
+      "endCaptures": {
+        "0": { "name": "punctuation.definition.string.end.multiquiz" }
+      },
+      "patterns": [
+        {
+          "name": "constant.character.escape.multiquiz",
+          "match": "\\\\."
+        }
+      ]
+    },
+    {
+      "comment": "Braces for question blocks",
+      "begin": "\\{",
+      "beginCaptures": {
+        "0": { "name": "punctuation.section.braces.begin.multiquiz" }
+      },
+      "end": "\\}",
+      "endCaptures": {
+        "0": { "name": "punctuation.section.braces.end.multiquiz" }
+      },
+      "patterns": [
+        { "include": "$self" }
+      ]
+    },
+    {
+      "comment": "Parentheses",
+      "begin": "\\(",
+      "beginCaptures": {
+        "0": { "name": "punctuation.section.parens.begin.multiquiz" }
+      },
+      "end": "\\)",
+      "endCaptures": {
+        "0": { "name": "punctuation.section.parens.end.multiquiz" }
+      },
+      "patterns": [
+        { "include": "$self" }
+      ]
+    },
+    {
+      "comment": "Square brackets (arrays)",
+      "begin": "\\[",
+      "beginCaptures": {
+        "0": { "name": "punctuation.section.brackets.begin.multiquiz" }
+      },
+      "end": "\\]",
+      "endCaptures": {
+        "0": { "name": "punctuation.section.brackets.end.multiquiz" }
+      },
+      "patterns": [
+        { "include": "$self" }
+      ]
+    }
+  ],
+  "repository": {}
+}

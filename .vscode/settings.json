@@ -1,0 +1,81 @@
+{
+  "files.associations": {
+    "*.multiquiz": "source.multiquiz",
+    "*.mq": "source.multiquiz",
+    "*.myext": "source.multiquiz",
+    "*.myapp": "source.multiquiz"
+  },
+  "[source.multiquiz]": {
+    "editor.tabSize": 2,
+    "editor.insertSpaces": true,
+    "editor.suggestOnTriggerCharacters": true,
+    "editor.quickSuggestions": {
+      "other": true,
+      "comments": false,
+      "strings": true
+    },
+    "editor.wordWrap": "on"
+  },
+  "editor.tokenColorCustomizations": {
+    "textMateRules": [
+      {
+        "scope": "keyword.control.multiquiz",
+        "settings": {
+          "foreground": "#FF69B4",
+          "fontStyle": "bold"
+        }
+      },
+      {
+        "scope": "keyword.other.type.multiquiz",
+        "settings": {
+          "foreground": "#C792EA",
+          "fontStyle": "italic"
+        }
+      },
+      {
+        "scope": "entity.name.tag.multiquiz",
+        "settings": {
+          "foreground": "#82AAFF"
+        }
+      },
+      {
+        "scope": "variable.other.assignment.multiquiz",
+        "settings": {
+          "foreground": "#F78C6C"
+        }
+      },
+      {
+        "scope": "variable.other.interpolation.multiquiz",
+        "settings": {
+          "foreground": "#FFCB6B",
+          "fontStyle": "bold"
+        }
+      },
+      {
+        "scope": "string.quoted.double.multiquiz",
+        "settings": {
+          "foreground": "#C3E88D"
+        }
+      },
+      {
+        "scope": "comment.line.double-slash.multiquiz",
+        "settings": {
+          "foreground": "#546E7A",
+          "fontStyle": "italic"
+        }
+      },
+      {
+        "scope": "constant.numeric.multiquiz",
+        "settings": {
+          "foreground": "#F78C6C"
+        }
+      },
+      {
+        "scope": "constant.language.multiquiz",
+        "settings": {
+          "foreground": "#89DDFF"
+        }
+      }
+    ]
+  }
+}
