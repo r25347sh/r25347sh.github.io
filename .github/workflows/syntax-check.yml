@@ -1,0 +1,20 @@
+name: JavaScript Syntax Check
+
+on:
+  push:
+    branches: [ main, master ] # mainまたはmasterブランチにプッシュされたら起動
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Syntax Check
+        run: |
+          # リポジトリ内のすべてのJSファイルに文法エラー（SyntaxError）がないか検証
+          for file in $(find . -name "*.js" -not -path "*/lib/*"); do
+            echo "Checking $file..."
+            node -c "$file"
+          done
