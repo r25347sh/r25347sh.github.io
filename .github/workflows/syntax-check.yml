@@ -40,17 +40,17 @@ jobs:
       # ------------------------------------------------------------------------
       - name: 6. 自作クイズデータの文法チェックを実行
         run: |
-          # あなたが作ったパーサーJS（例: js/parser.js）をNode.jsで裏で呼び出します。
+          # あなたが作ったパーサーJS（例: ./multiquiz/scanner.js.js）をNode.jsで裏で呼び出します。
           # 引数として、リポジトリ内のすべての .multiquiz / .mq ファイルを渡してテストします。
           
           echo "=== 独自クイズデータの自動チェック開始 ==="
           
-          # js/parser.js がファイルパスを受け取ってエラー時に終了コード1を出す設計の場合
-          if [ -f "js/parser.js" ]; then
+          # ./multiquiz/scanner.js.js がファイルパスを受け取ってエラー時に終了コード1を出す設計の場合
+          if [ -f "./multiquiz/scanner.js.js" ]; then
             for file in $(find . -type f \( -name "*.multiquiz" -o -name "*.mq" \) -not -path "*/lib/*"); do
               echo "Checking quiz file: $file"
-              node js/parser.js "$file"
+              node ./multiquiz/scanner.js.js "$file"
             done
           else
-            echo "⚠️ js/parser.js がまだ配置されていないため、データチェックをスキップします。"
+            echo "⚠️ ./multiquiz/scanner.js.js がまだ配置されていないため、データチェックをスキップします。"
           fi
