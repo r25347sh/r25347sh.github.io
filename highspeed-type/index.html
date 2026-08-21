@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>高速タイプ 1000Hz対応 | High-Speed Typing Rate Meter</title>
+  <meta name="description" content="1000Hz対応の高精度タイピング速度計測。自動Hz判定・目標Hz設定・文字間隔自動判読。スペース/Enter/画面タップ対応。">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app" id="app">
+    <header class="header">
+      <h1>高速タイプ <span class="hz-badge">1000Hz</span></h1>
+      <p class="subtitle">高精度キー間隔・タイプ速度自動計測 / 目標Hz設定可 / 文字間隔自動判読</p>
+    </header>
+
+    <!-- メイン表示 -->
+    <section class="meter">
+      <div class="big-hz">
+        <span id="current-hz">0.0</span>
+        <span class="unit">Hz</span>
+      </div>
+      <div class="hz-label">現在速度（直近ウィンドウ）</div>
+
+      <div class="stats-grid">
+        <div class="stat">
+          <div class="stat-value" id="avg-hz">0.0</div>
+          <div class="stat-label">平均 Hz</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="peak-hz">0.0</div>
+          <div class="stat-label">ピーク Hz</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="total-count">0</div>
+          <div class="stat-label">総打鍵数</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="elapsed">0.00</div>
+          <div class="stat-label">経過秒</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 目標設定 -->
+    <section class="controls">
+      <div class="control-row">
+        <label>
+          目標 Hz
+          <input type="number" id="target-hz" value="10" min="0.1" max="1000" step="0.1">
+        </label>
+        <label>
+          計測ウィンドウ (ms)
+          <input type="number" id="window-ms" value="1000" min="50" max="5000" step="50">
+        </label>
+        <label>
+          文字区切り閾値 (ms)
+          <input type="number" id="char-gap-ms" value="300" min="20" max="2000" step="10">
+        </label>
+      </div>
+      <div class="control-row secondary">
+        <label class="checkbox">
+          <input type="checkbox" id="auto-char" checked>
+          文字間隔を自動判読する
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" id="sound-on" checked>
+          打鍵音
+        </label>
+        <label>
+          音程 (Hz)
+          <input type="number" id="tone-freq" value="880" min="200" max="2000" step="10">
+        </label>
+      </div>
+    </section>
+
+    <!-- キーエリア -->
+    <section class="key-area" id="key-area">
+      <div class="hint">
+        <strong>スペース</strong> または <strong>Enter</strong>、もしくはこの領域をタップ<br>
+        高速連打対応（最大1000Hz計測）。離した時間で文字間隔を自動判読します。
+      </div>
+      <button id="tap-btn" class="tap-btn" type="button">
+        TAP / SPACE / ENTER
+      </button>
+      <div class="target-feedback" id="target-feedback">
+        目標まで — Hz
+      </div>
+    </section>
+
+    <!-- 自動判読結果 -->
+    <section class="decode-section">
+      <div class="section-title">文字間隔自動判読結果</div>
+      <div id="char-display" class="char-display">（ここに文字群が自動で入ります）</div>
+      <div class="interval-info">
+        <span>最終間隔: <strong id="last-interval">—</strong> ms</span>
+        <span>平均間隔: <strong id="avg-interval">—</strong> ms</span>
+        <span>文字数: <strong id="char-count">0</strong></span>
+      </div>
+      <div class="history-box">
+        <div class="section-title small">直近打鍵間隔 (ms)</div>
+        <div id="interval-history" class="interval-history">—</div>
+      </div>
+    </section>
+
+    <div class="action-row">
+      <button id="reset-btn" class="btn ghost">リセット</button>
+      <button id="copy-btn" class="btn secondary">結果コピー</button>
+    </div>
+
+    <footer class="footer">
+      <p>高精度計測: performance.now() / ローカル完結</p>
+      <p><a href="../">← リポジトリトップ</a></p>
+    </footer>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
