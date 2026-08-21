@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>r25347sh — Projects</title>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --surface: #151b24;
+      --border: #243044;
+      --text: #e8eef7;
+      --muted: #8b9cb3;
+      --accent: #38bdf8;
+      --accent2: #818cf8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Segoe UI", "Hiragino Sans", Meiryo, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+    .wrap {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 3rem 1.25rem 4rem;
+    }
+    header {
+      margin-bottom: 2.5rem;
+    }
+    h1 {
+      font-size: 1.85rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      background: linear-gradient(120deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .lead {
+      color: var(--muted);
+      margin-top: 0.5rem;
+      font-size: 0.95rem;
+    }
+    .projects {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    a.card {
+      display: block;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem 1.4rem;
+      text-decoration: none;
+      color: inherit;
+      transition: border-color 0.15s, transform 0.15s;
+    }
+    a.card:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+    }
+    a.card h2 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin-bottom: 0.35rem;
+      color: var(--accent);
+    }
+    a.card p {
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+    footer {
+      margin-top: 3rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>r25347sh.github.io</h1>
+      <p class="lead">公開プロジェクト一覧</p>
+    </header>
+
+    <section class="projects">
+      <a class="card" href="morse-practice/">
+        <h2>一総通 モールス信号練習</h2>
+        <p>
+          第一級総合無線通信士（一総通）向けのモールス聞き取り・送信練習ツール。
+          和文・欧文・数字・記号対応。Web Audio API による実音再生（約700Hz）。
+          ランダム文字・単語・5字群・カスタムテキスト対応。
+        </p>
+      </a>
+    </section>
+
+    <footer>
+      <p>GitHub Pages — r25347sh</p>
+    </footer>
+  </div>
+</body>
+</html>
