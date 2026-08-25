@@ -219,11 +219,11 @@
       captureInterval = setInterval(() => {
         try {
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.6); // さらに軽量化
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
           
-          // 【修正箇所】文字列の分割処理を変更し、純粋なBase64のみを取得
           const base64Parts = dataUrl.split(',');
           if (base64Parts.length === 2) {
+            // 【修正】 配列の2番目[1]を指定して、データ部分のみを正しくZIPに渡す
             const pureBase64 = base64Parts[1];
             const filename = `img_${String(imagesCount).padStart(4, '0')}.jpg`;
             zip.file(filename, pureBase64, {base64: true});
@@ -254,7 +254,6 @@
         link.click();
         document.body.removeChild(link);
 
-        // 完全リセット
         actionBtn.innerText = "撮影開始";
         actionBtn.className = "main-btn btn-start";
         actionBtn.disabled = false;
