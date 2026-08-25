@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>AI学習用 スポット連続撮影ツール</title>
+  <!-- ZIP圧縮用の外部ライブラリ (JSZip) -->
+  <script src="https://cloudflare.com"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      text-align: center;
+      background: #111;
+      color: #fff;
+      margin: 0;
+      padding: 15px;
+    }
+    h2 { margin-bottom: 5px; font-size: 1.2rem; }
+    
+    .config-panel {
+      background: #222;
+      padding: 12px;
+      border-radius: 8px;
+      width: 85%;
+      max-width: 320px;
+      margin: 0 auto 15px auto;
+      text-align: left;
+      font-size: 0.9rem;
+    }
+    .config-group {
+      margin-bottom: 8px;
+    }
+    .config-group:last-child { margin-bottom: 0; }
+    label { display: block; color: #ccc; margin-bottom: 3px; font-weight: bold; }
+    
+    input[type="text"] {
+      padding: 8px;
+      font-size: 1rem;
+      border-radius: 5px;
+      border: none;
+      width: 93%;
+      background: #333;
+      color: #fff;
+    }
+    
+    .fps-control {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    input[type="range"] {
+      flex: 1;
+      accent-color: #34c759;
+    }
+    .fps-value {
+      font-weight: bold;
+      color: #34c759;
+      min-width: 45px;
+      text-align: right;
+    }
+
+    #video-container {
+      position: relative;
+      width: 100%;
+      max-width: 400px;
+      margin: 0 auto;
+      aspect-ratio: 3 / 4;
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    #controls {
+      margin-top: 15px;
+    }
+    button {
+      font-size: 1.1rem;
+      font-weight: bold;
+      padding: 15px 30px;
+      border: none;
+      border-radius: 50px;
+      cursor: pointer;
+      width: 85%;
+      max-width: 340px;
+      margin-bottom: 10px;
+      transition: all 0.2s;
+    }
+    .btn-start { background: #ff3b30; color: white; }
+    .btn-start:active { background: #cc2e24; }
+    .btn-stop { background: #34c759; color: white; }
+    #status {
+      margin-top: 10px;
+      font-size: 0.95rem;
+      color: #aaa;
+      padding: 0 10px;
+    }
+    canvas { display: none; }
+  </style>
+</head>
+<body>
+
+  <h2>📸 スポット撮影ツール</h2>
+  
+  <!-- 設定パネル -->
+  <div class="config-panel">
+    <div class="config-group">
+      <label for="spot-name">📂 スポット名 (ZIP名)</label>
+      <input type="text" id="spot-name" value="spot_01" placeholder="例: keyaki_entrance">
+    </div>
+    
+    <div class="config-group">
+      <label for="fps-slider">⏱️ 連写速度 (1秒あたりの枚数)</label>
+      <div class="fps-control">
+        <input type="range" id="fps-slider" min="1" max="30" value="15" oninput="updateFPS(this.value)">
+        <span id="fps-display" class="fps-value">15 枚/秒</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="video-container">
+    <video id="webcam" autoplay playsinline muted></video>
+  </div>
+
+  <div id="controls">
+    <button id="action-btn" class="btn-start" onclick="toggleCapture()">撮影開始</button>
+  </div>
+
+  <div id="status">カメラを起動中...</div>
+
+  <!-- 映像を画像化するための隠し要素 -->
+  <canvas id="capture-canvas"></canvas>
+
+  <script>
+    let isCapturing = false;
+    let captureInterval = null;
+    let imagesCount = 0;
+    let zip = null;
+    let currentFPS = 15; // デフォルトは1秒に15枚
+    
+    const video = document.getElementById('webcam');
+    const canvas = document.getElementById('capture-canvas');
+    const ctx = canvas.getContext('2d');
+    const statusDiv = document.getElementById('status');
+    const actionBtn = document.getElementById('action-btn');
+    const spotNameInput = document.getElementById('spot-name');
+    const fpsSlider = document.getElementById('fps-slider');
+
+    // スライダーの値が変更されたときの表示更新
+    function updateFPS(value) {
+      currentFPS = parseInt(value);
+      document.getElementById('fps-display').innerText = `${currentFPS} 枚/秒`;
+      
+      // 撮影中の場合は、警告を表示（撮影中の変更は不可。一度停止する必要があるため）
+      if (isCapturing) {
+        statusDiv.innerText = "⚠️ 撮影中に連写速度は変更できません。次の撮影から適用されます。";
+      }
+    }
+
+    // 1. 背面カメラの起動
+    navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: "environment", 
+        width: { ideal: 640 },     // AI学習用に軽量なサイズに制限
+        height: { ideal: 480 }
+      },
+      audio: false
+    })
+    .then(stream => {
+      video.srcObject = stream;
+      statusDiv.innerText = "カメラ起動完了。条件を設定して撮影開始を押してください。";
+    })
+    .catch(err => {
+      statusDiv.innerText = "カメラの起動に失敗しました。HTTPS環境（GitHub Pages等）で試してください。";
+      console.error(err);
+    });
+
+    // 2. 撮影ボタンが押された時の切り替え処理
+    function toggleCapture() {
+      if (!isCapturing) {
+        startCapture();
+      } else {
+        stopAndDownload();
+      }
+    }
+
+    // 3. 連続撮影の開始
+    function startCapture() {
+      isCapturing = true;
+      imagesCount = 0;
+      zip = new JSZip(); 
+      
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+
+      actionBtn.innerText = "撮影停止（ZIP保存）";
+      actionBtn.className = "btn-stop";
+      
+      // スライダーのロック
+      fpsSlider.disabled = true;
+
+      // 指定されたFPSから、何ミリ秒ごとに撮影するかを計算
+      // 例: 15枚/秒 = 1000ms / 15 ≒ 66.6ms間隔
+      const intervalMs = 1000 / currentFPS;
+
+      captureInterval = setInterval(() => {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        // 画質を少し落として（0.7）容量と通信を軽くする
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        const base64Data = dataUrl.split(',');
+        
+        const filename = `img_${String(imagesCount).padStart(4, '0')}.jpg`;
+        zip.file(filename, base64Data, {base64: true});
+        
+        imagesCount++;
+        statusDiv.innerText = `撮影中... 現在 ${imagesCount} 枚 (設定: ${currentFPS}枚/秒)`;
+      }, intervalMs);
+    }
+
+    // 4. 撮影停止とZIPダウンロード
+    function stopAndDownload() {
+      isCapturing = false;
+      clearInterval(captureInterval);
+      
+      actionBtn.innerText = "処理中...";
+      actionBtn.disabled = true;
+      statusDiv.innerText = "画像をまとめてZIPファイルを作成中。少々お待ちください...";
+
+      const folderName = spotNameInput.value.trim() || "spot";
+
+      zip.generateAsync({type: "blob"}).then(function(content) {
+        const link = document.createElement('a');
+        link.href = window.URL.createObjectURL(content);
+        link.download = `${folderName}.zip`;
+        link.click();
+
+        // 状態をリセット
+        actionBtn.innerText = "撮影開始";
+        actionBtn.className = "btn-start";
+        actionBtn.disabled = false;
+        fpsSlider.disabled = false; // スライダーのロック解除
+        statusDiv.innerText = `保存完了！ [${folderName}.zip] (${imagesCount}枚の画像)`;
+      });
+    }
+  </script>
+</body>
+</html>
