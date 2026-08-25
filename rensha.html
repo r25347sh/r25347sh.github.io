@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AI学習用 スポット連続撮影ツール</title>
+  <title>AI学習用 スポット連続撮影ツール Pro</title>
   <!-- ZIP圧縮用の外部ライブラリ (JSZip) -->
   <script src="https://cloudflare.com"></script>
   <style>
@@ -28,7 +28,7 @@
       font-size: 0.9rem;
     }
     .config-group {
-      margin-bottom: 8px;
+      margin-bottom: 10px;
     }
     .config-group:last-child { margin-bottom: 0; }
     label { display: block; color: #ccc; margin-bottom: 3px; font-weight: bold; }
@@ -43,20 +43,21 @@
       color: #fff;
     }
     
-    .fps-control {
-      display: flex;
-      align-items: center;
-      gap: 10px;
+    /* セレクトボックスのスタイル（幅広い選択に対応） */
+    select {
+      width: 100%;
+      padding: 8px;
+      font-size: 1rem;
+      border-radius: 5px;
+      background: #333;
+      color: #fff;
+      border: none;
     }
-    input[type="range"] {
-      flex: 1;
-      accent-color: #34c759;
-    }
-    .fps-value {
-      font-weight: bold;
-      color: #34c759;
-      min-width: 45px;
-      text-align: right;
+    
+    /* カメラ切り替えボタン */
+    .btn-switch {
+      background: #555; color: white; border: none; padding: 6px 12px;
+      font-size: 0.85rem; border-radius: 4px; cursor: pointer; float: right;
     }
 
     #video-container {
@@ -77,7 +78,7 @@
     #controls {
       margin-top: 15px;
     }
-    button {
+    button.main-btn {
       font-size: 1.1rem;
       font-weight: bold;
       padding: 15px 30px;
@@ -99,11 +100,12 @@
       padding: 0 10px;
     }
     canvas { display: none; }
+    .clearfix::after { content: ""; clear: both; display: table; }
   </style>
 </head>
 <body>
 
-  <h2>📸 スポット撮影ツール</h2>
+  <h2>📸 スポット撮影ツール Pro</h2>
   
   <!-- 設定パネル -->
   <div class="config-panel">
@@ -113,11 +115,21 @@
     </div>
     
     <div class="config-group">
-      <label for="fps-slider">⏱️ 連写速度 (1秒あたりの枚数)</label>
-      <div class="fps-control">
-        <input type="range" id="fps-slider" min="1" max="30" value="15" oninput="updateFPS(this.value)">
-        <span id="fps-display" class="fps-value">15 枚/秒</span>
+      <div class="clearfix">
+        <label style="float: left;" for="fps-select">⏱️ 連写速度（間隔）</label>
+        <!-- カメラ切り替えボタン -->
+        <button class="btn-switch" onclick="switchCamera()">🔄 カメラ切替</button>
       </div>
+      <select id="fps-select" onchange="updateFPS(this.value)">
+        <option value="0.5">2秒に1枚 (じっくり・高画質向け)</option>
+        <option value="1">1秒に1枚 (1 fps)</option>
+        <option value="2">1秒に2枚 (2 fps)</option>
+        <option value="5">1秒に5枚 (5 fps)</option>
+        <option value="10">1秒に10枚 (10 fps)</option>
+        <option value="15" selected>1秒に15枚 (標準速・おすすめ)</option>
+        <option value="20">1秒に20枚 (高速)</option>
+        <option value="30">1秒に30枚 (超高速・動画並み)</option>
+      </select>
     </div>
   </div>
 
@@ -126,7 +138,7 @@
   </div>
 
   <div id="controls">
-    <button id="action-btn" class="btn-start" onclick="toggleCapture()">撮影開始</button>
+    <button id="action-btn" class="main-btn btn-start" onclick="toggleCapture()">撮影開始</button>
   </div>
 
   <div id="status">カメラを起動中...</div>
@@ -139,7 +151,9 @@
     let captureInterval = null;
     let imagesCount = 0;
     let zip = null;
-    let currentFPS = 15; // デフォルトは1秒に15枚
+    let currentFPS = 15; 
+    let currentFacingMode = "environment"; // デフォルトはアウカメ(背面)
+    let currentStream = null;
     
     const video = document.getElementById('webcam');
     const canvas = document.getElementById('capture-canvas');
@@ -147,38 +161,55 @@
     const statusDiv = document.getElementById('status');
     const actionBtn = document.getElementById('action-btn');
     const spotNameInput = document.getElementById('spot-name');
-    const fpsSlider = document.getElementById('fps-slider');
+    const fpsSelect = document.getElementById('fps-select');
 
-    // スライダーの値が変更されたときの表示更新
     function updateFPS(value) {
-      currentFPS = parseInt(value);
-      document.getElementById('fps-display').innerText = `${currentFPS} 枚/秒`;
-      
-      // 撮影中の場合は、警告を表示（撮影中の変更は不可。一度停止する必要があるため）
+      currentFPS = parseFloat(value);
       if (isCapturing) {
         statusDiv.innerText = "⚠️ 撮影中に連写速度は変更できません。次の撮影から適用されます。";
       }
     }
 
-    // 1. 背面カメラの起動
-    navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: "environment", 
-        width: { ideal: 640 },     // AI学習用に軽量なサイズに制限
-        height: { ideal: 480 }
-      },
-      audio: false
-    })
-    .then(stream => {
-      video.srcObject = stream;
-      statusDiv.innerText = "カメラ起動完了。条件を設定して撮影開始を押してください。";
-    })
-    .catch(err => {
-      statusDiv.innerText = "カメラの起動に失敗しました。HTTPS環境（GitHub Pages等）で試してください。";
-      console.error(err);
-    });
+    // 1. カメラ起動処理（インカメ・アウカメ対応）
+    function initCamera() {
+      // 既存のストリームがあれば停止させてから切り替える
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+      }
 
-    // 2. 撮影ボタンが押された時の切り替え処理
+      statusBarMessage("カメラを切り替え中...");
+
+      navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: currentFacingMode, // "environment"(外) または "user"(内)
+          width: { ideal: 640 },     
+          height: { ideal: 480 }
+        },
+        audio: false
+      })
+      .then(stream => {
+        currentStream = stream;
+        video.srcObject = stream;
+        const modeText = currentFacingMode === "environment" ? "アウカメ(背面)" : "インカメ(前面)";
+        statusBarMessage(`カメラ起動完了 [${modeText}]。撮影開始を押してください。`);
+      })
+      .catch(err => {
+        statusBarMessage("カメラの起動に失敗しました。HTTPS環境で試してください。");
+        console.error(err);
+      });
+    }
+
+    // カメラのイン・アウト切り替えボタンの処理
+    function switchCamera() {
+      if (isCapturing) {
+        alert("撮影中はカメラを切り替えられません。一度停止してください。");
+        return;
+      }
+      currentFacingMode = (currentFacingMode === "environment") ? "user" : "environment";
+      initCamera();
+    }
+
+    // 2. 撮影ボタンの処理
     function toggleCapture() {
       if (!isCapturing) {
         startCapture();
@@ -197,19 +228,16 @@
       canvas.height = video.videoHeight || 480;
 
       actionBtn.innerText = "撮影停止（ZIP保存）";
-      actionBtn.className = "btn-stop";
-      
-      // スライダーのロック
-      fpsSlider.disabled = true;
+      actionBtn.className = "main-btn btn-stop";
+      fpsSelect.disabled = true;
 
-      // 指定されたFPSから、何ミリ秒ごとに撮影するかを計算
-      // 例: 15枚/秒 = 1000ms / 15 ≒ 66.6ms間隔
+      // FPSからミリ秒の間隔を計算
       const intervalMs = 1000 / currentFPS;
 
       captureInterval = setInterval(() => {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         
-        // 画質を少し落として（0.7）容量と通信を軽くする
+        // 圧縮率0.7で軽量化
         const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
         const base64Data = dataUrl.split(',');
         
@@ -217,7 +245,7 @@
         zip.file(filename, base64Data, {base64: true});
         
         imagesCount++;
-        statusDiv.innerText = `撮影中... 現在 ${imagesCount} 枚 (設定: ${currentFPS}枚/秒)`;
+        statusBarMessage(`撮影中... 現在 ${imagesCount} 枚 (設定: ${fpsSelect.options[fpsSelect.selectedIndex].text})`);
       }, intervalMs);
     }
 
@@ -228,7 +256,7 @@
       
       actionBtn.innerText = "処理中...";
       actionBtn.disabled = true;
-      statusDiv.innerText = "画像をまとめてZIPファイルを作成中。少々お待ちください...";
+      statusBarMessage("画像をまとめてZIPファイルを作成中。少々お待ちください...");
 
       const folderName = spotNameInput.value.trim() || "spot";
 
@@ -238,14 +266,20 @@
         link.download = `${folderName}.zip`;
         link.click();
 
-        // 状態をリセット
         actionBtn.innerText = "撮影開始";
-        actionBtn.className = "btn-start";
+        actionBtn.className = "main-btn btn-start";
         actionBtn.disabled = false;
-        fpsSlider.disabled = false; // スライダーのロック解除
-        statusDiv.innerText = `保存完了！ [${folderName}.zip] (${imagesCount}枚の画像)`;
+        fpsSelect.disabled = false; 
+        statusBarMessage(`保存完了！ [${folderName}.zip] (${imagesCount}枚の画像)`);
       });
     }
+
+    function statusBarMessage(msg) {
+      statusDiv.innerText = msg;
+    }
+
+    // 最初にカメラを自動起動
+    initCamera();
   </script>
 </body>
 </html>
