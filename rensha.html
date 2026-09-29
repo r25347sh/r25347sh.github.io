@@ -43,8 +43,7 @@
             <div>
                 <label class="block text-xs font-bold text-slate-500 uppercase mb-1">カメラ切り替え</label>
                 <select id="camera-select" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
-                    <option value="user">インカメ (前面)</option>
-                    <option value="environment" selected>アウカメ (背面)</option>
+                    <option value="" disabled selected>カメラを読み込み中...</option>
                 </select>
             </div>
 
@@ -62,7 +61,7 @@
         const video = document.getElementById('video');
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
-        
+
         const filenameInput = document.getElementById('filename-input');
         const intervalSlider = document.getElementById('interval-slider');
         const intervalVal = document.getElementById('interval-val');
@@ -76,22 +75,101 @@
         let isShooting = false;
         let imagesCaptured = [];
         let photoIndex = 0;
+        let videoDevices = [];
 
         // Update interval UI label
         intervalSlider.addEventListener('input', (e) => {
             intervalVal.textContent = `${e.target.value}ms`;
         });
 
-        // Initialize and switch camera
+        /**
+         * デバイスラベルを日本語寄りに整形
+         * - facingMode相当のキーワードがあればインカメ/アウカメ表記
+         * - それ以外（外部カメラ等）はそのまま or 「外部カメラ N」
+         */
+        function formatDeviceLabel(device, index) {
+            const label = (device.label || '').toLowerCase();
+            if (!device.label) {
+                return `カメラ ${index + 1}`;
+            }
+            if (label.includes('front') || label.includes('user') || label.includes('facing front') || label.includes('前面') || label.includes('イン')) {
+                return `インカメ (前面) — ${device.label}`;
+            }
+            if (label.includes('back') || label.includes('rear') || label.includes('environment') || label.includes('背面') || label.includes('アウ')) {
+                return `アウカメ (背面) — ${device.label}`;
+            }
+            // 外部カメラ・USBカメラなど
+            return device.label;
+        }
+
+        /**
+         * 利用可能なビデオ入力デバイスを列挙してセレクトを更新
+         */
+        async function populateCameraList() {
+            try {
+                // 権限取得のため一度getUserMediaを呼ぶ（ラベルが空のままになるのを防ぐ）
+                if (!currentStream) {
+                    const tempStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                    tempStream.getTracks().forEach(t => t.stop());
+                }
+
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                videoDevices = devices.filter(d => d.kind === 'videoinput');
+
+                cameraSelect.innerHTML = '';
+
+                if (videoDevices.length === 0) {
+                    const opt = document.createElement('option');
+                    opt.value = '';
+                    opt.textContent = 'カメラが見つかりません';
+                    opt.disabled = true;
+                    cameraSelect.appendChild(opt);
+                    return;
+                }
+
+                videoDevices.forEach((device, index) => {
+                    const opt = document.createElement('option');
+                    opt.value = device.deviceId;
+                    opt.textContent = formatDeviceLabel(device, index);
+                    cameraSelect.appendChild(opt);
+                });
+
+                // デフォルトはアウカメ優先、なければ先頭
+                const preferred = videoDevices.find(d => {
+                    const l = (d.label || '').toLowerCase();
+                    return l.includes('back') || l.includes('rear') || l.includes('environment') || l.includes('背面');
+                });
+                if (preferred) {
+                    cameraSelect.value = preferred.deviceId;
+                } else {
+                    cameraSelect.selectedIndex = 0;
+                }
+            } catch (err) {
+                console.error('デバイス列挙失敗:', err);
+                cameraSelect.innerHTML = '';
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = 'カメラへのアクセスが拒否されました';
+                opt.disabled = true;
+                cameraSelect.appendChild(opt);
+            }
+        }
+
+        /**
+         * 選択されたdeviceIdでカメラを起動
+         */
         async function startCamera() {
             if (currentStream) {
                 currentStream.getTracks().forEach(track => track.stop());
+                currentStream = null;
             }
 
-            const facingMode = cameraSelect.value;
+            const deviceId = cameraSelect.value;
+            if (!deviceId) return;
+
             const constraints = {
                 video: {
-                    facingMode: facingMode,
+                    deviceId: { exact: deviceId },
                     width: { ideal: 640 },
                     height: { ideal: 480 }
                 },
@@ -102,22 +180,46 @@
                 currentStream = await navigator.mediaDevices.getUserMedia(constraints);
                 video.srcObject = currentStream;
             } catch (err) {
-                alert('カメラの起動に失敗しました: ' + err.message);
+                // exactが厳しい場合はidealにフォールバック
+                try {
+                    currentStream = await navigator.mediaDevices.getUserMedia({
+                        video: {
+                            deviceId: { ideal: deviceId },
+                            width: { ideal: 640 },
+                            height: { ideal: 480 }
+                        },
+                        audio: false
+                    });
+                    video.srcObject = currentStream;
+                } catch (err2) {
+                    alert('カメラの起動に失敗しました: ' + err2.message);
+                }
             }
         }
 
         cameraSelect.addEventListener('change', startCamera);
 
+        // デバイスの着脱を検知してリストを更新
+        if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+            navigator.mediaDevices.addEventListener('devicechange', async () => {
+                const prevId = cameraSelect.value;
+                await populateCameraList();
+                // 以前選んでいたデバイスが残っていれば再選択
+                if (prevId && [...cameraSelect.options].some(o => o.value === prevId)) {
+                    cameraSelect.value = prevId;
+                }
+                await startCamera();
+            });
+        }
+
         // Capture a single frame to array
         function captureFrame() {
             if (video.videoWidth === 0 || video.videoHeight === 0) return;
 
-            // Maintain aspect ratio or direct match
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-            // Convert to base64 DataURL (JPEG for performance/smaller size)
             const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
             imagesCaptured.push(dataUrl);
 
@@ -151,21 +253,18 @@
 
             if (imagesCaptured.length > 0) {
                 const zip = new JSZip();
-                
-                // Add all captured images to zip
+
                 imagesCaptured.forEach((dataUrl, idx) => {
                     const base64Data = dataUrl.split(',')[1];
-                    // Pad index with zeros for clean alphabetical sorting in TM
                     const paddedIdx = String(idx + 1).padStart(4, '0');
                     zip.file(`image_${paddedIdx}.jpg`, base64Data, { base64: true });
                 });
 
-                // Generate and download zip
                 try {
                     const content = await zip.generateAsync({ type: 'blob' });
                     const url = URL.createObjectURL(content);
                     const a = document.createElement('a');
-                    
+
                     const zipName = (filenameInput.value.trim() || 'tm-dataset') + '.zip';
                     a.href = url;
                     a.download = zipName;
@@ -197,8 +296,11 @@
             }
         });
 
-        // Start camera on initial load
-        window.addEventListener('DOMContentLoaded', startCamera);
+        // 初期化: デバイス列挙 → カメラ起動
+        window.addEventListener('DOMContentLoaded', async () => {
+            await populateCameraList();
+            await startCamera();
+        });
     </script>
 </body>
 </html>
