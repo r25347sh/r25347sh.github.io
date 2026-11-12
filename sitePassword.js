@@ -443,7 +443,7 @@
     };
   }
 
-  // ===== SP Menu (Android-like edge glow) =====
+  // ===== SP chrome: charge edge + menu =====
   function mountSpChrome() {
     if (!currentUser) return;
     ensureStyles();
@@ -452,36 +452,69 @@
     const frame = document.createElement("div");
     frame.id = "sp-edge-frame";
     frame.innerHTML = `
-      <div class="sp-charge" aria-hidden="true">
-        <div class="sp-charge-edge sp-charge-t"></div>
-        <div class="sp-charge-edge sp-charge-r"></div>
-        <div class="sp-charge-edge sp-charge-b"></div>
-        <div class="sp-charge-edge sp-charge-l"></div>
-      </div>
+      <svg class="sp-charge-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        <defs>
+          <linearGradient id="spChargeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#3b9eff" stop-opacity="0"/>
+            <stop offset="35%" stop-color="#7cc4ff" stop-opacity="0.55"/>
+            <stop offset="50%" stop-color="#e8f4ff" stop-opacity="1"/>
+            <stop offset="65%" stop-color="#7cc4ff" stop-opacity="0.55"/>
+            <stop offset="100%" stop-color="#3b9eff" stop-opacity="0"/>
+          </linearGradient>
+          <filter id="spChargeBlur" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="0.6"/>
+          </filter>
+        </defs>
+        <rect class="sp-charge-track" x="0.6" y="0.6" width="98.8" height="98.8" rx="2.2" ry="2.2"
+              fill="none" stroke="rgba(59,158,255,0.18)" stroke-width="0.35"/>
+        <rect class="sp-charge-flow" x="0.6" y="0.6" width="98.8" height="98.8" rx="2.2" ry="2.2"
+              fill="none" stroke="url(#spChargeGrad)" stroke-width="0.55"
+              stroke-linecap="round" filter="url(#spChargeBlur)"/>
+        <rect class="sp-charge-core" x="0.6" y="0.6" width="98.8" height="98.8" rx="2.2" ry="2.2"
+              fill="none" stroke="#cfe9ff" stroke-width="0.22"
+              stroke-linecap="round"/>
+      </svg>
       <button type="button" class="sp-edge-hit sp-edge-hit-top" aria-label="SPメニューを開く"></button>
       <button type="button" class="sp-edge-hit sp-edge-hit-bottom" aria-label="SPメニューを開く"></button>
       <button type="button" class="sp-edge-hit sp-edge-hit-left" aria-label="SPメニューを開く"></button>
       <button type="button" class="sp-edge-hit sp-edge-hit-right" aria-label="SPメニューを開く"></button>
-      <button type="button" class="sp-edge-fab" id="sp-edge-fab" aria-label="SPメニューを開く">SP</button>
+      <button type="button" class="sp-edge-fab" id="sp-edge-fab" aria-label="SPメニューを開く">
+        <span class="sp-fab-dot"></span>
+        <span class="sp-fab-txt">SP</span>
+      </button>
     `;
 
     const panel = document.createElement("div");
     panel.id = "sp-menu-panel";
     panel.innerHTML = `
       <div class="sp-menu-card">
-        <div class="sp-menu-top">
-          <div>
+        <header class="sp-menu-head">
+          <div class="sp-menu-identity">
             <div class="sp-menu-dn" id="sp-menu-dn"></div>
-            <div class="sp-menu-id" id="sp-menu-id"></div>
+            <div class="sp-menu-meta">
+              <span class="sp-menu-id" id="sp-menu-id"></span>
+              <span class="sp-menu-roles" id="sp-menu-roles"></span>
+            </div>
           </div>
-          <button type="button" class="sp-menu-close" id="sp-menu-close" aria-label="閉じる">×</button>
-        </div>
-        <div class="sp-menu-roles" id="sp-menu-roles"></div>
-        <button type="button" class="sp-menu-row" id="sp-menu-manage">ログイン管理</button>
-        <button type="button" class="sp-menu-row sp-menu-row-danger" id="sp-menu-logout">ログアウト</button>
+          <button type="button" class="sp-menu-close" id="sp-menu-close" aria-label="閉じる">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </header>
+        <nav class="sp-menu-list">
+          <button type="button" class="sp-menu-item" id="sp-menu-manage">
+            <span class="sp-menu-item-label">ログイン管理</span>
+            <span class="sp-menu-item-hint">Display Name</span>
+          </button>
+          <button type="button" class="sp-menu-item sp-menu-item-danger" id="sp-menu-logout">
+            <span class="sp-menu-item-label">ログアウト</span>
+            <span class="sp-menu-item-hint">セッション終了</span>
+          </button>
+        </nav>
         <div class="sp-manage-form" id="sp-manage-form" hidden>
           <label class="sp-label" for="sp-dn-input">Display Name</label>
-          <input class="sp-input" type="text" id="sp-dn-input" maxlength="40" autocomplete="nickname" />
+          <input class="sp-input" type="text" id="sp-dn-input" maxlength="40" autocomplete="nickname" placeholder="表示名" />
           <div class="sp-save-actions">
             <button type="button" class="sp-btn sp-btn-secondary" id="sp-dn-cancel">キャンセル</button>
             <button type="button" class="sp-btn" id="sp-dn-save">保存</button>
@@ -497,13 +530,34 @@
     document.body.appendChild(panel);
     document.body.appendChild(frame);
 
+    // perimeter length in viewBox units (approx for rounded rect)
+    // set dash so only a bright segment is visible, then animate offset
+    requestAnimationFrame(() => {
+      const flow = frame.querySelector(".sp-charge-flow");
+      const core = frame.querySelector(".sp-charge-core");
+      [flow, core].forEach((el, i) => {
+        if (!el) return;
+        try {
+          const len = el.getTotalLength();
+          const seg = i === 0 ? len * 0.18 : len * 0.08;
+          el.style.strokeDasharray = seg + " " + (len - seg);
+          el.style.strokeDashoffset = "0";
+          el.style.setProperty("--sp-len", String(len));
+        } catch (_) {
+          /* getTotalLength may fail on some engines with % viewBox — fallback CSS handles */
+        }
+      });
+    });
+
     function refreshMenuLabels() {
       const dn = displayName || (currentUser && currentUser.id) || "";
       document.getElementById("sp-menu-dn").textContent = dn;
       document.getElementById("sp-menu-id").textContent = currentUser ? "@" + currentUser.id : "";
       const rolesEl = document.getElementById("sp-menu-roles");
       if (currentUser && currentUser.roles.length) {
-        rolesEl.innerHTML = currentUser.roles.map((r) => `<span class="sp-role-chip">${r}</span>`).join("");
+        rolesEl.innerHTML = currentUser.roles
+          .map((r) => `<span class="sp-role-chip">${r}</span>`)
+          .join("");
       } else {
         rolesEl.innerHTML = "";
       }
@@ -541,7 +595,8 @@
     document.getElementById("sp-menu-manage").onclick = () => {
       const form = document.getElementById("sp-manage-form");
       form.hidden = false;
-      document.getElementById("sp-dn-input").value = displayName || (currentUser && currentUser.id) || "";
+      document.getElementById("sp-dn-input").value =
+        displayName || (currentUser && currentUser.id) || "";
       document.getElementById("sp-dn-input").focus();
     };
 
