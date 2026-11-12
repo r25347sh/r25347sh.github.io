@@ -1,38 +1,31 @@
 /**
  * sitePassword.js
  * Highest-priority client-side auth gate for static sites.
- * Usage:
- *   <script src="/sitePassword.js" defer
- *           data-allows="((role:admin%teacher)%ID:special)&role:beekeeper"></script>
  *
- * Operators:
- *   %   = OR
- *   &   = AND
- *   !!  = NOT
- *   ()  = grouping
- * Atoms: role:xxx  or  ID:xxx  (bare identifier defaults to role:)
+ * Session:
+ *   - Always: Cookie for 3 days after successful login
+ *   - Optional: IndexedDB when user chooses "長く保存"
  *
- * Special role: BAN → shows frozen message and blocks login
+ * Special role BAN → frozen message
  */
 
 (function () {
   "use strict";
 
-  // ===== Config =====
   const DB_NAME = "SitePasswordDB";
   const DB_STORE = "sessions";
   const DB_VERSION = 1;
   const SESSION_KEY = "current";
+  const COOKIE_NAME = "sp_session";
+  const COOKIE_DAYS = 3;
 
-  // ===== State =====
   let config = {
     allowsExpr: "",
     basePath: "/",
     users: [],
   };
-  let currentUser = null; // { id, roles: string[] }
+  let currentUser = null;
 
-  // ===== Utilities =====
   function getOwnScript() {
     if (document.currentScript) return document.currentScript;
     const scripts = document.querySelectorAll('script[src*="sitePassword.js"]');
@@ -68,7 +61,51 @@
     return user && Array.isArray(user.roles) && user.roles.includes("BAN");
   }
 
-  // ===== Minimal YAML parser =====
+  // ===== Cookie helpers =====
+  function setCookieSession(user, days) {
+    const exp = Date.now() + days * 24 * 60 * 60 * 1000;
+    const payload = btoa(
+      unescape(
+        encodeURIComponent(
+          JSON.stringify({ id: user.id, roles: user.roles, exp: exp })
+        )
+      )
+    );
+    const maxAge = days * 24 * 60 * 60;
+    document.cookie =
+      COOKIE_NAME +
+      "=" +
+      payload +
+      "; path=/; max-age=" +
+      maxAge +
+      "; SameSite=Lax";
+  }
+
+  function getCookieSession() {
+    const match = document.cookie.match(
+      new RegExp("(?:^|; )" + COOKIE_NAME + "=([^;]*)")
+    );
+    if (!match) return null;
+    try {
+      const raw = decodeURIComponent(escape(atob(match[1])));
+      const data = JSON.parse(raw);
+      if (!data || !data.id || !Array.isArray(data.roles)) return null;
+      if (data.exp && Date.now() > data.exp) {
+        clearCookieSession();
+        return null;
+      }
+      return { id: data.id, roles: data.roles };
+    } catch {
+      return null;
+    }
+  }
+
+  function clearCookieSession() {
+    document.cookie =
+      COOKIE_NAME + "=; path=/; max-age=0; SameSite=Lax";
+  }
+
+  // ===== YAML parser =====
   function parseSimpleYaml(text) {
     const users = [];
     let current = null;
@@ -84,7 +121,6 @@
         users.push(current);
         continue;
       }
-
       if (!current) continue;
 
       const passMatch = line.match(/^\s*pass_hash:\s*["']?([a-f0-9]+)["']?\s*$/i);
@@ -92,7 +128,6 @@
         current.pass_hash = passMatch[1].toLowerCase();
         continue;
       }
-
       if (/^\s*roles:\s*$/.test(line)) continue;
 
       const roleMatch = line.match(/^\s*-\s*(.+?)\s*$/);
@@ -103,12 +138,11 @@
     return users;
   }
 
-  // ===== Expression parser for data-allows =====
+  // ===== allows DSL =====
   function tokenize(expr) {
     const tokens = [];
     let i = 0;
     const s = expr.replace(/\s+/g, "");
-
     while (i < s.length) {
       if (s.startsWith("!!", i)) {
         tokens.push({ type: "NOT" });
@@ -135,7 +169,6 @@
         i++;
         continue;
       }
-
       const rest = s.slice(i);
       const m = rest.match(/^(role:|ID:)?([A-Za-z0-9_\-\.]+)/i);
       if (m) {
@@ -148,7 +181,6 @@
         i += m[0].length;
         continue;
       }
-
       i++;
     }
     return tokens;
@@ -157,21 +189,13 @@
   function parseAllows(expr) {
     const tokens = tokenize(expr || "");
     let pos = 0;
-
     function peek() {
       return tokens[pos];
     }
     function consume(type) {
-      if (peek() && peek().type === type) {
-        return tokens[pos++];
-      }
+      if (peek() && peek().type === type) return tokens[pos++];
       return null;
     }
-
-    function parseExpr() {
-      return parseOr();
-    }
-
     function parseOr() {
       let left = parseAnd();
       while (peek() && peek().type === "OR") {
@@ -182,7 +206,6 @@
       }
       return left;
     }
-
     function parseAnd() {
       let left = parseNot();
       while (peek() && peek().type === "AND") {
@@ -193,7 +216,6 @@
       }
       return left;
     }
-
     function parseNot() {
       if (peek() && peek().type === "NOT") {
         consume("NOT");
@@ -202,11 +224,10 @@
       }
       return parsePrimary();
     }
-
     function parsePrimary() {
       if (peek() && peek().type === "LPAREN") {
         consume("LPAREN");
-        const inner = parseExpr();
+        const inner = parseOr();
         consume("RPAREN");
         return inner;
       }
@@ -214,20 +235,16 @@
         const atom = consume("ATOM");
         return (user) => {
           if (!user) return false;
-          if (atom.kind === "id") {
-            return user.id === atom.value;
-          }
+          if (atom.kind === "id") return user.id === atom.value;
           return Array.isArray(user.roles) && user.roles.includes(atom.value);
         };
       }
       return () => false;
     }
-
-    const fn = parseExpr();
-    return fn || (() => false);
+    return parseOr() || (() => false);
   }
 
-  // ===== IndexedDB helpers =====
+  // ===== IndexedDB =====
   function openDB() {
     return new Promise((resolve, reject) => {
       const req = indexedDB.open(DB_NAME, DB_VERSION);
@@ -242,13 +259,12 @@
     });
   }
 
-  async function loadSession() {
+  async function loadIdbSession() {
     try {
       const db = await openDB();
       return new Promise((resolve) => {
         const tx = db.transaction(DB_STORE, "readonly");
-        const store = tx.objectStore(DB_STORE);
-        const req = store.get(SESSION_KEY);
+        const req = tx.objectStore(DB_STORE).get(SESSION_KEY);
         req.onsuccess = () => resolve(req.result || null);
         req.onerror = () => resolve(null);
       });
@@ -257,29 +273,24 @@
     }
   }
 
-  async function saveSession(user) {
+  async function saveIdbSession(user) {
     try {
       const db = await openDB();
       return new Promise((resolve, reject) => {
         const tx = db.transaction(DB_STORE, "readwrite");
-        const store = tx.objectStore(DB_STORE);
-        store.put(
-          {
-            id: user.id,
-            roles: user.roles,
-            savedAt: Date.now(),
-          },
+        tx.objectStore(DB_STORE).put(
+          { id: user.id, roles: user.roles, savedAt: Date.now() },
           SESSION_KEY
         );
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
       });
     } catch (e) {
-      console.warn("[sitePassword] saveSession failed", e);
+      console.warn("[sitePassword] saveIdbSession failed", e);
     }
   }
 
-  async function clearSession() {
+  async function clearIdbSession() {
     try {
       const db = await openDB();
       return new Promise((resolve) => {
@@ -293,26 +304,24 @@
     }
   }
 
-  // ===== Auth check =====
+  async function clearAllSessions() {
+    clearCookieSession();
+    await clearIdbSession();
+  }
+
   function userMatchesAllows(user) {
     if (!config.allowsExpr) return true;
-    const checker = parseAllows(config.allowsExpr);
-    return checker(user);
+    return parseAllows(config.allowsExpr)(user);
   }
 
   async function tryLogin(id, password) {
     const idHash = await sha256(id);
     const passHash = await sha512(password);
-
     const matched = config.users.find(
       (u) => u.id_hash === idHash && u.pass_hash === passHash
     );
     if (!matched) return null;
-
-    return {
-      id: id,
-      roles: matched.roles.slice(),
-    };
+    return { id: id, roles: matched.roles.slice() };
   }
 
   // ===== UI =====
@@ -329,7 +338,6 @@
     if (document.getElementById("site-password-overlay")) {
       return document.getElementById("site-password-overlay");
     }
-
     const overlay = document.createElement("div");
     overlay.id = "site-password-overlay";
     overlay.innerHTML = `
@@ -337,7 +345,6 @@
         <div class="sp-logo">SP</div>
         <h1 class="sp-title">Access Required</h1>
         <p class="sp-subtitle">このページは認証が必要です</p>
-
         <form class="sp-form" id="sp-login-form" autocomplete="on">
           <div class="sp-field">
             <label class="sp-label" for="sp-id">ID</label>
@@ -350,15 +357,13 @@
           <div class="sp-error" id="sp-error"></div>
           <button type="submit" class="sp-btn" id="sp-submit">ログイン</button>
         </form>
-
         <div class="sp-save-prompt" id="sp-save-prompt">
-          <p class="sp-save-text">このブラウザにログイン情報を保存しますか？</p>
+          <p class="sp-save-text">このブラウザにログイン情報を長く保存しますか？<br><small style="opacity:.7">（どちらを選んでも3日間は自動で維持されます）</small></p>
           <div class="sp-save-actions">
-            <button type="button" class="sp-btn sp-btn-secondary" id="sp-save-no">保存しない</button>
-            <button type="button" class="sp-btn" id="sp-save-yes">保存する</button>
+            <button type="button" class="sp-btn sp-btn-secondary" id="sp-save-no">3日間のみ</button>
+            <button type="button" class="sp-btn" id="sp-save-yes">長く保存</button>
           </div>
         </div>
-
         <div class="sp-success-msg" id="sp-success">認証に成功しました</div>
       </div>
     `;
@@ -370,9 +375,7 @@
     ensureStyles();
     const overlay = createOverlay();
     document.body.classList.add("sp-locked", "sp-auth-pending");
-    requestAnimationFrame(() => {
-      overlay.classList.add("sp-visible");
-    });
+    requestAnimationFrame(() => overlay.classList.add("sp-visible"));
 
     const form = document.getElementById("sp-login-form");
     const errorEl = document.getElementById("sp-error");
@@ -404,8 +407,6 @@
           submitBtn.textContent = "ログイン";
           return;
         }
-
-        // BAN check (highest priority after credential match)
         if (isBanned(user)) {
           errorEl.textContent = "このアカウントは現在凍結されております。";
           errorEl.classList.add("sp-show");
@@ -413,7 +414,6 @@
           submitBtn.textContent = "ログイン";
           return;
         }
-
         if (!userMatchesAllows(user)) {
           errorEl.textContent = "このアカウントではこのページにアクセスできません";
           errorEl.classList.add("sp-show");
@@ -422,13 +422,14 @@
           return;
         }
 
-        // Success
         currentUser = user;
+        setCookieSession(user, COOKIE_DAYS);
+
         form.style.display = "none";
         savePrompt.classList.add("sp-active");
 
         document.getElementById("sp-save-yes").onclick = async () => {
-          await saveSession(user);
+          await saveIdbSession(user);
           finishAuth();
         };
         document.getElementById("sp-save-no").onclick = () => {
@@ -463,60 +464,59 @@
       setTimeout(() => {
         if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
       }, 400);
-    }, 600);
+    }, 500);
   }
 
-  function hideOverlayImmediate() {
-    const overlay = document.getElementById("site-password-overlay");
-    if (overlay) {
-      overlay.classList.remove("sp-visible");
-      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
-    }
-    document.body.classList.remove("sp-locked", "sp-auth-pending");
-  }
-
-  // ===== Public tiny API =====
   window.SitePassword = {
     getUser: () => currentUser,
     logout: async () => {
       currentUser = null;
-      await clearSession();
+      await clearAllSessions();
       location.reload();
     },
     hasRole: (role) => currentUser && currentUser.roles.includes(role),
   };
 
-  // ===== Bootstrap =====
+  async function restoreSession() {
+    let saved = getCookieSession();
+    if (!saved) {
+      const idb = await loadIdbSession();
+      if (idb && idb.id && Array.isArray(idb.roles)) {
+        saved = { id: idb.id, roles: idb.roles };
+        setCookieSession(saved, COOKIE_DAYS);
+      }
+    }
+    if (!saved) return null;
+    if (isBanned(saved)) {
+      await clearAllSessions();
+      return null;
+    }
+    if (!userMatchesAllows(saved)) {
+      return null;
+    }
+    return saved;
+  }
+
   async function bootstrap() {
     const scriptEl = getOwnScript();
     config.allowsExpr = (scriptEl && scriptEl.getAttribute("data-allows")) || "";
     config.basePath = resolveBasePath(scriptEl);
 
     try {
-      const res = await fetch(config.basePath + "sitePassword.yml", { cache: "no-cache" });
+      const res = await fetch(config.basePath + "sitePassword.yml", {
+        cache: "no-cache",
+      });
       if (!res.ok) throw new Error("yml fetch failed");
-      const ymlText = await res.text();
-      config.users = parseSimpleYaml(ymlText);
+      config.users = parseSimpleYaml(await res.text());
     } catch (e) {
       console.error("[sitePassword] Failed to load sitePassword.yml", e);
     }
 
-    // Try restore session
-    const saved = await loadSession();
-    if (saved && saved.id && Array.isArray(saved.roles)) {
-      currentUser = { id: saved.id, roles: saved.roles };
-
-      // BAN check on restored session
-      if (isBanned(currentUser)) {
-        currentUser = null;
-        await clearSession();
-      } else if (userMatchesAllows(currentUser)) {
-        document.body.classList.remove("sp-auth-pending");
-        return;
-      } else {
-        currentUser = null;
-        await clearSession();
-      }
+    const saved = await restoreSession();
+    if (saved) {
+      currentUser = saved;
+      document.body.classList.remove("sp-auth-pending");
+      return;
     }
 
     if (document.body) {
