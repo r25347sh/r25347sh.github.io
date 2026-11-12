@@ -443,7 +443,7 @@
     };
   }
 
-  // ===== SP Menu (edge glow) =====
+  // ===== SP Menu (Android-like edge glow) =====
   function mountSpChrome() {
     if (!currentUser) return;
     ensureStyles();
@@ -452,75 +452,40 @@
     const frame = document.createElement("div");
     frame.id = "sp-edge-frame";
     frame.innerHTML = `
-      <div class="sp-edge-ring" aria-hidden="true"></div>
-      <div class="sp-edge-bloom" aria-hidden="true"></div>
-      <div class="sp-corner sp-corner-tl" aria-hidden="true"></div>
-      <div class="sp-corner sp-corner-tr" aria-hidden="true"></div>
-      <div class="sp-corner sp-corner-bl" aria-hidden="true"></div>
-      <div class="sp-corner sp-corner-br" aria-hidden="true"></div>
-      <div class="sp-edge-runner sp-run-a" aria-hidden="true"></div>
-      <div class="sp-edge-runner sp-run-b" aria-hidden="true"></div>
-      <div class="sp-edge-runner sp-run-c" aria-hidden="true"></div>
+      <div class="sp-charge" aria-hidden="true">
+        <div class="sp-charge-edge sp-charge-t"></div>
+        <div class="sp-charge-edge sp-charge-r"></div>
+        <div class="sp-charge-edge sp-charge-b"></div>
+        <div class="sp-charge-edge sp-charge-l"></div>
+      </div>
       <button type="button" class="sp-edge-hit sp-edge-hit-top" aria-label="SPメニューを開く"></button>
       <button type="button" class="sp-edge-hit sp-edge-hit-bottom" aria-label="SPメニューを開く"></button>
       <button type="button" class="sp-edge-hit sp-edge-hit-left" aria-label="SPメニューを開く"></button>
       <button type="button" class="sp-edge-hit sp-edge-hit-right" aria-label="SPメニューを開く"></button>
-      <button type="button" class="sp-edge-fab" id="sp-edge-fab" aria-label="SPメニューを開く" title="SP Menu">
-        <span class="sp-fab-core"></span>
-        <span class="sp-fab-ring"></span>
-        <span class="sp-fab-label">SP</span>
-      </button>
+      <button type="button" class="sp-edge-fab" id="sp-edge-fab" aria-label="SPメニューを開く">SP</button>
     `;
 
     const panel = document.createElement("div");
     panel.id = "sp-menu-panel";
     panel.innerHTML = `
-      <div class="sp-menu-shell">
-        <div class="sp-menu-aurora" aria-hidden="true"></div>
-        <div class="sp-menu-inner">
-          <div class="sp-menu-header">
-            <div class="sp-avatar" id="sp-avatar">?</div>
-            <div class="sp-menu-user">
-              <span class="sp-menu-dn" id="sp-menu-dn"></span>
-              <span class="sp-menu-id" id="sp-menu-id"></span>
-            </div>
-            <button type="button" class="sp-menu-close" id="sp-menu-close" aria-label="閉じる">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
-            </button>
+      <div class="sp-menu-card">
+        <div class="sp-menu-top">
+          <div>
+            <div class="sp-menu-dn" id="sp-menu-dn"></div>
+            <div class="sp-menu-id" id="sp-menu-id"></div>
           </div>
-          <div class="sp-menu-roles" id="sp-menu-roles"></div>
-          <div class="sp-menu-divider"><span>CONTROLS</span></div>
-          <div class="sp-menu-actions">
-            <button type="button" class="sp-menu-btn" id="sp-menu-manage">
-              <span class="sp-menu-btn-ico">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 19c1.5-3.5 4-5 7-5s5.5 1.5 7 5"/></svg>
-              </span>
-              <span class="sp-menu-btn-text">
-                <strong>ログイン管理</strong>
-                <small>Display Name を変更</small>
-              </span>
-              <span class="sp-menu-btn-chev">›</span>
-            </button>
-            <button type="button" class="sp-menu-btn sp-menu-btn-danger" id="sp-menu-logout">
-              <span class="sp-menu-btn-ico">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 7V6a2 2 0 012-2h7a2 2 0 012 2v12a2 2 0 01-2 2h-7a2 2 0 01-2-2v-1"/><path d="M15 12H3m0 0l3-3m-3 3l3 3"/></svg>
-              </span>
-              <span class="sp-menu-btn-text">
-                <strong>ログアウト</strong>
-                <small>この端末のセッションを終了</small>
-              </span>
-              <span class="sp-menu-btn-chev">›</span>
-            </button>
+          <button type="button" class="sp-menu-close" id="sp-menu-close" aria-label="閉じる">×</button>
+        </div>
+        <div class="sp-menu-roles" id="sp-menu-roles"></div>
+        <button type="button" class="sp-menu-row" id="sp-menu-manage">ログイン管理</button>
+        <button type="button" class="sp-menu-row sp-menu-row-danger" id="sp-menu-logout">ログアウト</button>
+        <div class="sp-manage-form" id="sp-manage-form" hidden>
+          <label class="sp-label" for="sp-dn-input">Display Name</label>
+          <input class="sp-input" type="text" id="sp-dn-input" maxlength="40" autocomplete="nickname" />
+          <div class="sp-save-actions">
+            <button type="button" class="sp-btn sp-btn-secondary" id="sp-dn-cancel">キャンセル</button>
+            <button type="button" class="sp-btn" id="sp-dn-save">保存</button>
           </div>
-          <div class="sp-manage-form" id="sp-manage-form" hidden>
-            <label class="sp-label" for="sp-dn-input">Display Name</label>
-            <input class="sp-input" type="text" id="sp-dn-input" maxlength="40" autocomplete="nickname" placeholder="表示名" />
-            <div class="sp-save-actions" style="margin-top:0.85rem">
-              <button type="button" class="sp-btn sp-btn-secondary" id="sp-dn-cancel">キャンセル</button>
-              <button type="button" class="sp-btn" id="sp-dn-save">保存</button>
-            </div>
-          </div>
-          <div class="sp-menu-foot">sitePassword · secured session</div>
         </div>
       </div>
     `;
@@ -532,19 +497,10 @@
     document.body.appendChild(panel);
     document.body.appendChild(frame);
 
-    function initials(name) {
-      const s = (name || "?").trim();
-      if (!s) return "?";
-      const parts = s.split(/\s+/);
-      if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-      return s.slice(0, 2).toUpperCase();
-    }
-
     function refreshMenuLabels() {
       const dn = displayName || (currentUser && currentUser.id) || "";
       document.getElementById("sp-menu-dn").textContent = dn;
       document.getElementById("sp-menu-id").textContent = currentUser ? "@" + currentUser.id : "";
-      document.getElementById("sp-avatar").textContent = initials(dn);
       const rolesEl = document.getElementById("sp-menu-roles");
       if (currentUser && currentUser.roles.length) {
         rolesEl.innerHTML = currentUser.roles.map((r) => `<span class="sp-role-chip">${r}</span>`).join("");
