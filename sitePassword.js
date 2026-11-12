@@ -443,22 +443,27 @@
     };
   }
 
-  // ===== SP Menu (wave) =====
+  // ===== SP Menu (edge glow) =====
   function mountSpChrome() {
     if (!currentUser) return;
     ensureStyles();
-    if (document.getElementById("sp-wave-bar")) return;
+    if (document.getElementById("sp-edge-frame")) return;
 
-    const bar = document.createElement("div");
-    bar.id = "sp-wave-bar";
-    bar.setAttribute("role", "button");
-    bar.setAttribute("aria-label", "SPメニューを開く");
-    bar.tabIndex = 0;
-    bar.innerHTML = `
-      <svg class="sp-wave-svg" viewBox="0 0 1440 48" preserveAspectRatio="none" aria-hidden="true">
-        <path class="sp-wave-path sp-wave-1" d="M0,24 C180,8 360,40 540,24 C720,8 900,40 1080,24 C1260,8 1380,20 1440,24 L1440,48 L0,48 Z"></path>
-        <path class="sp-wave-path sp-wave-2" d="M0,28 C200,12 400,36 600,28 C800,20 1000,36 1200,28 C1320,22 1400,26 1440,28 L1440,48 L0,48 Z"></path>
-      </svg>
+    const frame = document.createElement("div");
+    frame.id = "sp-edge-frame";
+    frame.innerHTML = `
+      <div class="sp-edge-glow sp-edge-glow-top"></div>
+      <div class="sp-edge-glow sp-edge-glow-bottom"></div>
+      <div class="sp-edge-glow sp-edge-glow-left"></div>
+      <div class="sp-edge-glow sp-edge-glow-right"></div>
+      <div class="sp-edge-runner sp-edge-runner-h"></div>
+      <div class="sp-edge-runner sp-edge-runner-h2"></div>
+      <div class="sp-edge-runner sp-edge-runner-v"></div>
+      <div class="sp-edge-runner sp-edge-runner-v2"></div>
+      <button type="button" class="sp-edge-hit sp-edge-hit-top" aria-label="SPメニューを開く"></button>
+      <button type="button" class="sp-edge-hit sp-edge-hit-bottom" aria-label="SPメニューを開く"></button>
+      <button type="button" class="sp-edge-hit sp-edge-hit-left" aria-label="SPメニューを開く"></button>
+      <button type="button" class="sp-edge-hit sp-edge-hit-right" aria-label="SPメニューを開く"></button>
     `;
 
     const panel = document.createElement("div");
@@ -486,11 +491,6 @@
           </div>
         </div>
       </div>
-      <div class="sp-menu-wave-bottom">
-        <svg viewBox="0 0 1440 32" preserveAspectRatio="none" aria-hidden="true">
-          <path class="sp-wave-path sp-wave-1" d="M0,8 C240,24 480,0 720,12 C960,24 1200,4 1440,16 L1440,0 L0,0 Z"></path>
-        </svg>
-      </div>
     `;
 
     const backdrop = document.createElement("div");
@@ -498,7 +498,7 @@
 
     document.body.appendChild(backdrop);
     document.body.appendChild(panel);
-    document.body.appendChild(bar);
+    document.body.appendChild(frame);
 
     function refreshMenuLabels() {
       const dn = displayName || (currentUser && currentUser.id) || "";
@@ -517,21 +517,17 @@
       document.getElementById("sp-manage-form").hidden = true;
       backdrop.classList.add("sp-open");
       panel.classList.add("sp-open");
-      bar.classList.add("sp-open");
+      frame.classList.add("sp-open");
     }
 
     function closeMenu() {
       backdrop.classList.remove("sp-open");
       panel.classList.remove("sp-open");
-      bar.classList.remove("sp-open");
+      frame.classList.remove("sp-open");
     }
 
-    bar.addEventListener("click", openMenu);
-    bar.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        openMenu();
-      }
+    frame.querySelectorAll(".sp-edge-hit").forEach((el) => {
+      el.addEventListener("click", openMenu);
     });
     backdrop.addEventListener("click", closeMenu);
     document.getElementById("sp-menu-close").onclick = closeMenu;
