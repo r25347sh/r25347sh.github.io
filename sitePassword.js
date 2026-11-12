@@ -11,6 +11,8 @@
  *   !!  = NOT
  *   ()  = grouping
  * Atoms: role:xxx  or  ID:xxx  (bare identifier defaults to role:)
+ *
+ * Special role: BAN → shows frozen message and blocks login
  */
 
 (function () {
@@ -32,7 +34,6 @@
 
   // ===== Utilities =====
   function getOwnScript() {
-    // Prefer document.currentScript (works even with defer in modern browsers)
     if (document.currentScript) return document.currentScript;
     const scripts = document.querySelectorAll('script[src*="sitePassword.js"]');
     return scripts[scripts.length - 1] || null;
@@ -63,7 +64,11 @@
       .join("");
   }
 
-  // ===== Minimal YAML parser (only what we need) =====
+  function isBanned(user) {
+    return user && Array.isArray(user.roles) && user.roles.includes("BAN");
+  }
+
+  // ===== Minimal YAML parser =====
   function parseSimpleYaml(text) {
     const users = [];
     let current = null;
@@ -73,7 +78,6 @@
       const line = raw.replace(/#.*$/, "").trimEnd();
       if (!line.trim()) continue;
 
-      // - id_hash: "..."
       const idMatch = line.match(/^\s*-\s*id_hash:\s*["']?([a-f0-9]+)["']?\s*$/i);
       if (idMatch) {
         current = { id_hash: idMatch[1].toLowerCase(), pass_hash: "", roles: [] };
@@ -89,7 +93,6 @@
         continue;
       }
 
-      // roles: or - role
       if (/^\s*roles:\s*$/.test(line)) continue;
 
       const roleMatch = line.match(/^\s*-\s*(.+?)\s*$/);
@@ -101,14 +104,6 @@
   }
 
   // ===== Expression parser for data-allows =====
-  // Grammar (recursive descent):
-  //   expr   := orExpr
-  //   orExpr := andExpr ( '%' andExpr )*
-  //   andExpr:= notExpr ( '&' notExpr )*
-  //   notExpr:= '!!' notExpr | primary
-  //   primary:= '(' expr ')' | atom
-  //   atom   := ( 'role:' | 'ID:' )? IDENTIFIER
-
   function tokenize(expr) {
     const tokens = [];
     let i = 0;
@@ -141,7 +136,6 @@
         continue;
       }
 
-      // atom: optional prefix + identifier
       const rest = s.slice(i);
       const m = rest.match(/^(role:|ID:)?([A-Za-z0-9_\-\.]+)/i);
       if (m) {
@@ -155,7 +149,6 @@
         continue;
       }
 
-      // skip unknown char
       i++;
     }
     return tokens;
@@ -224,11 +217,9 @@
           if (atom.kind === "id") {
             return user.id === atom.value;
           }
-          // role
           return Array.isArray(user.roles) && user.roles.includes(atom.value);
         };
       }
-      // empty / invalid → always false
       return () => false;
     }
 
@@ -304,7 +295,7 @@
 
   // ===== Auth check =====
   function userMatchesAllows(user) {
-    if (!config.allowsExpr) return true; // no restriction
+    if (!config.allowsExpr) return true;
     const checker = parseAllows(config.allowsExpr);
     return checker(user);
   }
@@ -319,7 +310,7 @@
     if (!matched) return null;
 
     return {
-      id: id, // original ID (not hash)
+      id: id,
       roles: matched.roles.slice(),
     };
   }
@@ -379,7 +370,6 @@
     ensureStyles();
     const overlay = createOverlay();
     document.body.classList.add("sp-locked", "sp-auth-pending");
-    // force reflow then show
     requestAnimationFrame(() => {
       overlay.classList.add("sp-visible");
     });
@@ -415,6 +405,15 @@
           return;
         }
 
+        // BAN check (highest priority after credential match)
+        if (isBanned(user)) {
+          errorEl.textContent = "このアカウントは現在凍結されております。";
+          errorEl.classList.add("sp-show");
+          submitBtn.disabled = false;
+          submitBtn.textContent = "ログイン";
+          return;
+        }
+
         if (!userMatchesAllows(user)) {
           errorEl.textContent = "このアカウントではこのページにアクセスできません";
           errorEl.classList.add("sp-show");
@@ -444,7 +443,6 @@
       }
     };
 
-    // focus
     setTimeout(() => document.getElementById("sp-id")?.focus(), 120);
   }
 
@@ -477,7 +475,7 @@
     document.body.classList.remove("sp-locked", "sp-auth-pending");
   }
 
-  // ===== Public tiny API (optional) =====
+  // ===== Public tiny API =====
   window.SitePassword = {
     getUser: () => currentUser,
     logout: async () => {
@@ -488,40 +486,39 @@
     hasRole: (role) => currentUser && currentUser.roles.includes(role),
   };
 
-  // ===== Bootstrap (highest priority path) =====
+  // ===== Bootstrap =====
   async function bootstrap() {
     const scriptEl = getOwnScript();
     config.allowsExpr = (scriptEl && scriptEl.getAttribute("data-allows")) || "";
     config.basePath = resolveBasePath(scriptEl);
 
-    // Load YAML as early as possible
-    let ymlText = "";
     try {
       const res = await fetch(config.basePath + "sitePassword.yml", { cache: "no-cache" });
       if (!res.ok) throw new Error("yml fetch failed");
-      ymlText = await res.text();
+      const ymlText = await res.text();
       config.users = parseSimpleYaml(ymlText);
     } catch (e) {
       console.error("[sitePassword] Failed to load sitePassword.yml", e);
-      // Still show login so page is not left open
     }
 
     // Try restore session
     const saved = await loadSession();
     if (saved && saved.id && Array.isArray(saved.roles)) {
       currentUser = { id: saved.id, roles: saved.roles };
-      if (userMatchesAllows(currentUser)) {
-        // Already authorized
+
+      // BAN check on restored session
+      if (isBanned(currentUser)) {
+        currentUser = null;
+        await clearSession();
+      } else if (userMatchesAllows(currentUser)) {
         document.body.classList.remove("sp-auth-pending");
         return;
+      } else {
+        currentUser = null;
+        await clearSession();
       }
-      // Saved user does not satisfy current page's allows → force re-login
-      currentUser = null;
-      await clearSession();
     }
 
-    // Need login
-    // Wait for body if necessary
     if (document.body) {
       showOverlay();
     } else {
@@ -529,10 +526,8 @@
     }
   }
 
-  // Run immediately
   bootstrap().catch((e) => {
     console.error("[sitePassword] bootstrap error", e);
-    // Fail closed: show overlay if possible
     if (document.body) showOverlay();
   });
 })();
