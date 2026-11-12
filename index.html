@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>r25347sh — Protected</title>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, system-ui, sans-serif;
+      background: #0f0f13;
+      color: #e8e8f0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 2rem;
+    }
+    .content {
+      max-width: 520px;
+    }
+    h1 { font-size: 1.75rem; margin-bottom: 0.5rem; }
+    p { color: #9898b0; line-height: 1.6; }
+    code {
+      background: #1a1a24;
+      padding: 0.15em 0.45em;
+      border-radius: 6px;
+      font-size: 0.9em;
+    }
+    .logout {
+      margin-top: 2rem;
+      appearance: none;
+      background: #242433;
+      border: 1px solid #2e2e42;
+      color: #e8e8f0;
+      padding: 0.6rem 1.2rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+    .logout:hover { background: #2e2e42; }
+  </style>
+  <!-- 
+    data-allows example:
+    ((role:admin%teacher)%ID:special)&role:beekeeper
+    → ((admin OR teacher) OR ID=special) AND beekeeper
+
+    Current demo: allow admin or bika
+  -->
+  <script src="./sitePassword.js" defer data-allows="role:admin%role:bika"></script>
+</head>
+<body>
+  <div class="content">
+    <h1>Protected Page</h1>
+    <p>このページは <code>sitePassword.js</code> によって保護されています。</p>
+    <p>ログインに成功した場合のみこのコンテンツが表示されます。</p>
+    <p style="margin-top:1.5rem;font-size:0.85rem;opacity:0.7">
+      現在の制限: <code>role:admin % role:bika</code>
+    </p>
+    <button class="logout" onclick="SitePassword.logout()">ログアウト</button>
+  </div>
+</body>
+</html>
