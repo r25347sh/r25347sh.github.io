@@ -492,8 +492,7 @@
               fill="none" stroke="#cfe9ff" stroke-width="0.22"
               stroke-linecap="round"/>
       </svg>
-      <button type="button" class="sp-edge-hit sp-edge-hit-top" aria-label="SPメニューを開く"></button>
-      <button type="button" class="sp-edge-hit sp-edge-hit-bottom" aria-label="SPメニューを開く"></button>
+            <button type="button" class="sp-edge-hit sp-edge-hit-bottom" aria-label="SPメニューを開く"></button>
       <button type="button" class="sp-edge-hit sp-edge-hit-left" aria-label="SPメニューを開く"></button>
       <button type="button" class="sp-edge-hit sp-edge-hit-right" aria-label="SPメニューを開く"></button>
       <button type="button" class="sp-edge-fab" id="sp-edge-fab" aria-label="SPメニューを開く">
