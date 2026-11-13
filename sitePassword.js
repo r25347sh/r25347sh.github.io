@@ -12,15 +12,15 @@
 
   const DB_NAME = "SitePasswordDB";
   const DB_STORE = "sessions";
-  const DB_DN_STORE = "displayNames";
-  const DB_VERSION = 2;
+  const DB_DN_STORE = "displayNames"; // profile objects keyed by user id
+  const DB_VERSION = 3;
   const SESSION_KEY = "current";
   const COOKIE_NAME = "sp_session";
   const COOKIE_DAYS = 3;
 
   let config = { allowsExpr: "", basePath: "/", users: [] };
   let currentUser = null; // { id, roles }
-  let displayName = "";
+  let profile = { displayName: "", className: "", title: "" };
 
   // ===== Utils =====
   function getOwnScript() {
@@ -245,13 +245,31 @@
     }
   }
 
-  async function loadDisplayName(userId) {
-    const v = await idbGet(DB_DN_STORE, userId);
-    return v && typeof v === "string" ? v : "";
+  function normalizeProfile(v, fallbackId) {
+    if (v && typeof v === "object") {
+      return {
+        displayName: typeof v.displayName === "string" ? v.displayName : (fallbackId || ""),
+        className: typeof v.className === "string" ? v.className : "",
+        title: typeof v.title === "string" ? v.title : "",
+      };
+    }
+    if (typeof v === "string" && v) {
+      return { displayName: v, className: "", title: "" };
+    }
+    return { displayName: fallbackId || "", className: "", title: "" };
   }
 
-  async function saveDisplayName(userId, name) {
-    await idbPut(DB_DN_STORE, userId, name);
+  async function loadProfile(userId) {
+    const v = await idbGet(DB_DN_STORE, userId);
+    return normalizeProfile(v, userId);
+  }
+
+  async function saveProfile(userId, p) {
+    await idbPut(DB_DN_STORE, userId, {
+      displayName: p.displayName || userId,
+      className: p.className || "",
+      title: p.title || "",
+    });
   }
 
   async function clearSessionStorage() {
@@ -378,7 +396,7 @@
 
         currentUser = user;
         setCookieSession(user, COOKIE_DAYS);
-        displayName = (await loadDisplayName(user.id)) || user.id;
+        profile = await loadProfile(user.id);
 
         form.style.display = "none";
         savePrompt.classList.add("sp-active");
@@ -504,8 +522,8 @@
         </header>
         <nav class="sp-menu-list">
           <button type="button" class="sp-menu-item" id="sp-menu-manage">
-            <span class="sp-menu-item-label">ログイン管理</span>
-            <span class="sp-menu-item-hint">Display Name</span>
+            <span class="sp-menu-item-label">ユーザー情報</span>
+            <span class="sp-menu-item-hint">名前・クラス・肩書</span>
           </button>
           <button type="button" class="sp-menu-item sp-menu-item-danger" id="sp-menu-logout">
             <span class="sp-menu-item-label">ログアウト</span>
@@ -513,8 +531,20 @@
           </button>
         </nav>
         <div class="sp-manage-form" id="sp-manage-form" hidden>
-          <label class="sp-label" for="sp-dn-input">Display Name</label>
-          <input class="sp-input" type="text" id="sp-dn-input" maxlength="40" autocomplete="nickname" placeholder="表示名" />
+          <div class="sp-field">
+            <label class="sp-label" for="sp-dn-input">Display Name</label>
+            <input class="sp-input" type="text" id="sp-dn-input" maxlength="40" autocomplete="nickname" placeholder="表示名" />
+          </div>
+          <div class="sp-field">
+            <label class="sp-label" for="sp-class-input">学年クラス</label>
+            <select class="sp-input sp-select" id="sp-class-input">
+              <option value="">未設定</option><option value="4A">4A</option><option value="4B">4B</option><option value="4C">4C</option><option value="4D">4D</option><option value="4E">4E</option><option value="4F">4F</option><option value="4G">4G</option><option value="4H">4H</option><option value="4I">4I</option><option value="5A">5A</option><option value="5B">5B</option><option value="5C">5C</option><option value="5D">5D</option><option value="5E">5E</option><option value="5F">5F</option><option value="5G">5G</option><option value="5H">5H</option><option value="5I">5I</option><option value="6A">6A</option><option value="6B">6B</option><option value="6C">6C</option><option value="6D">6D</option><option value="6E">6E</option><option value="6F">6F</option><option value="6G">6G</option><option value="6H">6H</option><option value="6I">6I</option>
+            </select>
+          </div>
+          <div class="sp-field">
+            <label class="sp-label" for="sp-title-input">役職・肩書等</label>
+            <input class="sp-input" type="text" id="sp-title-input" maxlength="60" placeholder="例: 委員長 / 顧問" />
+          </div>
           <div class="sp-save-actions">
             <button type="button" class="sp-btn sp-btn-secondary" id="sp-dn-cancel">キャンセル</button>
             <button type="button" class="sp-btn" id="sp-dn-save">保存</button>
@@ -550,13 +580,17 @@
     });
 
     function refreshMenuLabels() {
-      const dn = displayName || (currentUser && currentUser.id) || "";
+      const dn = profile.displayName || (currentUser && currentUser.id) || "";
       document.getElementById("sp-menu-dn").textContent = dn;
-      document.getElementById("sp-menu-id").textContent = currentUser ? "@" + currentUser.id : "";
+      const metaBits = [];
+      if (currentUser) metaBits.push('<span class="sp-menu-id-text">@' + currentUser.id + "</span>");
+      if (profile.className) metaBits.push('<span class="sp-menu-tag">' + profile.className + "</span>");
+      if (profile.title) metaBits.push('<span class="sp-menu-tag">' + profile.title + "</span>");
+      document.getElementById("sp-menu-id").innerHTML = metaBits.join(" ");
       const rolesEl = document.getElementById("sp-menu-roles");
       if (currentUser && currentUser.roles.length) {
         rolesEl.innerHTML = currentUser.roles
-          .map((r) => `<span class="sp-role-chip">${r}</span>`)
+          .map((r) => '<span class="sp-role-chip">' + r + "</span>")
           .join("");
       } else {
         rolesEl.innerHTML = "";
@@ -596,7 +630,9 @@
       const form = document.getElementById("sp-manage-form");
       form.hidden = false;
       document.getElementById("sp-dn-input").value =
-        displayName || (currentUser && currentUser.id) || "";
+        profile.displayName || (currentUser && currentUser.id) || "";
+      document.getElementById("sp-class-input").value = profile.className || "";
+      document.getElementById("sp-title-input").value = profile.title || "";
       document.getElementById("sp-dn-input").focus();
     };
 
@@ -605,10 +641,16 @@
     };
 
     document.getElementById("sp-dn-save").onclick = async () => {
-      const name = document.getElementById("sp-dn-input").value.trim();
       if (!currentUser) return;
-      displayName = name || currentUser.id;
-      await saveDisplayName(currentUser.id, displayName);
+      const name = document.getElementById("sp-dn-input").value.trim();
+      const className = document.getElementById("sp-class-input").value;
+      const title = document.getElementById("sp-title-input").value.trim();
+      profile = {
+        displayName: name || currentUser.id,
+        className: className || "",
+        title: title || "",
+      };
+      await saveProfile(currentUser.id, profile);
       refreshMenuLabels();
       document.getElementById("sp-manage-form").hidden = true;
     };
@@ -617,7 +659,8 @@
   // ===== Public API =====
   window.SitePassword = {
     getUser: () => currentUser,
-    getDisplayName: () => displayName || (currentUser && currentUser.id) || "",
+    getDisplayName: () => profile.displayName || (currentUser && currentUser.id) || "",
+    getProfile: () => ({ ...profile }),
     logout: async () => {
       currentUser = null;
       await clearSessionStorage();
@@ -680,7 +723,7 @@
     }
     if (result && result.user) {
       currentUser = result.user;
-      displayName = (await loadDisplayName(currentUser.id)) || currentUser.id;
+      profile = await loadProfile(currentUser.id);
       const mount = () => mountSpChrome();
       if (document.body) mount();
       else document.addEventListener("DOMContentLoaded", mount, { once: true });
