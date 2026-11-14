@@ -87,7 +87,7 @@
       if (!line.trim()) continue;
       const idMatch = line.match(/^\s*-\s*id_hash:\s*["']?([a-f0-9]+)["']?\s*$/i);
       if (idMatch) {
-        current = { id_hash: idMatch[1].toLowerCase(), pass_hash: "", roles: [] };
+        current = { id_hash: idMatch[1].toLowerCase(), roles: [], pass_hash: "" };
         users.push(current);
         continue;
       }
@@ -286,11 +286,28 @@
   }
 
   function ensureStyles() {
+    if (!document.getElementById("site-password-critical")) {
+      const critical = document.createElement("style");
+      critical.id = "site-password-critical";
+      critical.textContent = [
+        "#site-password-overlay{opacity:0;visibility:hidden}",
+        "#sp-menu-backdrop{opacity:0!important;visibility:hidden!important;pointer-events:none!important}",
+        "#sp-menu-panel{transform:translateY(110%)!important;pointer-events:none!important}",
+        "#sp-edge-fab{opacity:0;visibility:hidden}",
+        "#sp-edge-frame{opacity:0}",
+        "body.sp-ready #sp-edge-fab{opacity:1;visibility:visible}",
+        "body.sp-ready #sp-edge-frame{opacity:1}",
+        "body.sp-ready #site-password-overlay.sp-visible{opacity:1;visibility:visible}"
+      ].join("");
+      document.head.appendChild(critical);
+    }
     if (document.getElementById("site-password-css")) return;
     const link = document.createElement("link");
     link.id = "site-password-css";
     link.rel = "stylesheet";
     link.href = config.basePath + "sitePassword.css";
+    link.onload = function () { document.body.classList.add("sp-ready"); };
+    setTimeout(function () { document.body.classList.add("sp-ready"); }, 120);
     document.head.appendChild(link);
   }
 
@@ -442,7 +459,10 @@
   function mountSpChrome() {
     if (!currentUser) return;
     ensureStyles();
-    if (document.getElementById("sp-edge-frame")) return;
+    if (document.getElementById("sp-edge-frame")) {
+      document.body.classList.add("sp-ready");
+      return;
+    }
 
     const frame = document.createElement("div");
     frame.id = "sp-edge-frame";
@@ -535,6 +555,7 @@
       fab.innerHTML = '<span class="sp-fab-dot"></span><span class="sp-fab-txt">SP</span>';
       document.body.appendChild(fab);
     }
+    requestAnimationFrame(function () { document.body.classList.add("sp-ready"); });
 
     function refreshMenuLabels() {
       const dn = profile.displayName || (currentUser && currentUser.id) || "";
